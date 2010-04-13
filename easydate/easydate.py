@@ -2,128 +2,169 @@ from datetime import *
 import unittest
 import sys
 import re
-""" this module is for easily converting a date written in plain text 
+
+__author__ = "Far McKon"
+__maintainer__ = "Far McKon"
+__email__ = "FarMcKon@gmail.com"
+__copyright__ = "Copyright 2010, Far McKon Bespoke Industries"
+__license__ = "GPL"
+__version__ = "0.1.1.0"
+__code_uuid__ = "afad1c75-e3e3-4a8c-822d-c7ebd13a367f"
+
+__docformat__ = "restructuredtext"
+__doc__ =  """ This module is for easily converting a date written in plain text 
 into a datetime object.  This is a fast way to get datetime objects from
 human readable dates.
 
 Examples:
-	"Thursday" or "Thurs" or "thur", etc -> a datetime object for 13:00 on this (or the next following) T	hursday.
-	"tomorrow" -> a datetime oject for 13:00 on the next day
-	"today"	   -> a datetime object for 13:00 
-		     (or after 13:00) a date time object for an hour from the current time until 22:59
-		      (after 22:59PM) a warning is thrown, and an object for tomorrow at 13:00 is created
+	"Thursday" or "Thurs" or "thur", etc -> a datetime object for 13:00 
+			on this (or the next following) Thursday.
+	"tomorrow" -> a datetime.date object for the next day
+	"today"	   -> a datetime.date object for today
 
 """
+
 
 #TRICKY: list for use of .index function
+#code uuid 6609a841-4360-45f6-ad42-ff7587138016
 daysOfTheWeek = ['Monday','Tuesday','Wednesday','Thursday','Friday', 'Saturday','Sunday']
-g_daysOfTheWeekRegexs = ['Mon([\.\s]|$|day)','Tues?([\.\s]|$|day)','Weds?([\.\s]|$|nesday)',
-'Thurs?([\.\s]|$|day)','Fri?([\.\s]|$|day)','Sat?([\.\s]|$|urday)','Sun([\.\s]|$|day)']
+_daysOfTheWeekRegexs = ['Mon([\.\s]|$|day)','Tu(es|e)?([\.\s]|$|day)','Weds?([\.\s]|$|nesday)',
+'Th(urs|ur)?([\.\s]|$|day)','Fri?([\.\s]|$|day)','Sat?([\.\s]|$|urday)','Sun([\.\s]|$|day)']
 
-DEBUG = False
+#TODO: add hanling of 2010/03/04 style dates, and internationalization thereof
 
-class TestClass(unittest.TestCase):
+def numberFromDayOFMonth(dayOfMonthText):
+	"""Takes a 'day of month number' and  returns the integer 'day of month number of that"""
+	match = re.search("\d\d?", dayOfMonthText);
+	if(match): 
+		return int(match.group());
+	return None
 
-	def testDatetimeByDelta(self):
-		tmDT = datetime.today() + timedelta(days=1)
-		baseDT = datetime(tmDT.year,tmDT.month,tmDT.day,13, 00, tmDT.second)
-		testDT = datetimeByDelta()		
-		test2DT = datetimeByDelta(1)
-		test3DT = datetimeByDelta(daysInTheFuture=1)	
-		self.assertEqual(baseDT, testDT,'badly generated datetime object for dateTimeByDelta')
-		self.assertEqual(baseDT, test2DT,'badly generated datetime object for dateTimeByDelta')		
-		self.assertEqual(baseDT, test3DT,'badly generated datetime object for dateTimeByDelta')
-		pass
-
-
-	def testDatetimeByTextToday(self):
-		baseDT = datetime.today()
-		testDT = datetimeByFutureDayText('today')
-		self.compareDays(baseDT, testDT,'badly generated datetime object for today')
-		test2DT = datetimeByFutureDayText('Today')
-		self.compareDays(baseDT, test2DT,'badly generated datetime object for Today ')		
-	
-	def testDatetimeByTextTomorrow(self):
-		tmDT = datetime.today() + timedelta(days=1)
-		baseDT = datetime(tmDT.year,tmDT.month,tmDT.day,13, 00, tmDT.second)
-		testDT = datetimeByFutureDayText('tomorrow')
-		self.compareDays(baseDT, testDT,'badly generated datetime object for today')
-		test2DT = datetimeByFutureDayText('Tomorrow')
-		self.compareDays(baseDT, test2DT,'badly generated datetime object for Today ')		
-
-	def compareDays(self,datetimeBase,datetime2,textError):
-		self.assertEquals(datetimeBase.hour,datetime2.hour,textError + " (hours error)")
-		self.assertEquals(datetimeBase.year,datetime2.year,textError + " (year error)")
-		self.assertEquals(datetimeBase.month,datetime2.month,textError + " (month error)")
-		self.assertEquals(datetimeBase.minute,datetime2.minute,textError + " (minute error)")
-
-
-
-
-def datetimeByFutureDayText(textDate):
-	""" does processing to turn a text date 'name' into a datetime object for that date. Exact daytime is set by: 
-Examples:
-	"Thursday" -> a datetime object for 13:00 on this (or the next following) thursday.
-	"tomorrow" -> a datetime oject for 13:00 on the next day
-	"today"	   -> a datetime object for 13:00 
-		     (or after 13:00) a date time object for an hour from the current time until 22:59
-		      (after 22:59PM) a warning is thrown, and an object for tomorrow at 13:00 is created
+def dateByNameAndDayNumber(textDate):
+	""" Takes a text date 'Dayname and numberTh' and tries to read it and return a datetime.date for
+	the next date in the future that matche that dayname and day of the month numer. 
+	Examples:
+	"Thursday the 16th: returns the next Thursday that is on at 16th
+	"Tu the 12 " returns the next Tuesday that is on a 12th
+	"Fri 22" - returns the next Friday that is a 22nd
 """
-
-
 	nowDT = datetime.today()
-	newDT = None
+	textDate = textDate.lstrip().rstrip()
+	dateNumber = numberFromDayOFMonth(textDate.split(" ")[-1])
+	dateName = textDate.split(" ")[0];
+	weekdayIndex = weekdayNumberByName(dateName)
+	
+	if(dateNumber == None):
+		return None
+	
+	# -- try to match that day number and day of week number for this month (after today)
+	if(nowDT.day <= dateNumber):
+		testDatetime = datetime(nowDT.year,nowDT.month, dateNumber)
+		if(testDatetime.weekday() == weekdayIndex): #we matched
+			return testDatetime.date()
+
+	# -- otherwise try to match that day number and day of week number in the next 8 months (after today)	
+	for i in range(1,8):
+		testMonth = nowDT.month + i
+				
+		if (testMonth < 12):
+			testDatetime = datetime(nowDT.year,testMonth, dateNumber).date()
+			if(testDatetime.weekday() == weekdayIndex): #we matched
+				return testDatetime
+		else:	
+			testDatetime = datetime(nowDT.year+1, (testMonth%12), dateNumber)
+			if(testDatetime.weekday() == weekdayIndex): #we matched
+				return testDatetime.date()
+	# -- no match. Return nothing	 
+	return None
+
+
+def dateByFutureDayName(textDate):
+	""" Takesa a text date 'Dayname', tries to read it, and returns  a datetime.date object 
+	for that date.Exact daytime is set by:  Parameter 'textDate' - A text stirng of date info. 
+	Examples:
+	"Thursday" -> a datetime.date object for next closes Thursday (including today)
+	"tomorrow" -> a datetime.date oject for the next day
+	"today"	   -> a datetime.date object for today
+"""
+	newDate = None
 	textDate = textDate.lstrip().rstrip().lower()
 	if(textDate == 'today'):
-		newDT = datetime.today()
+		newDate = datetime.today().date()
 	elif(textDate == 'tomorrow'):
-		newDT = datetimeByDelta(daysInTheFuture=1)
+		newDate = dateByDelta(daysInTheFuture=1)
 	else:
-		for regex in g_daysOfTheWeekRegexs:
+		for regex in _daysOfTheWeekRegexs:
 			matcher = re.compile(regex, re.I);
-			if(matcher.search(textDate)):
-				newDT = datetimeByWeedayName(textDate)
-	return newDT
+			if(matcher.match(textDate)):
+				newDate = datetimeByWeekdayName(textDate)
+	return newDate
 
-def datetimeByWeedayName(dayName):
-	""" Takes a text weekday name, and returns a datetime
-	object for 1PM on this or the next day of the week matching that name"""
-	nowDT = datetime.today()
-	for regex in g_daysOfTheWeekRegexs:
+def weekdayNumberByName(dayName):
+	""" Takes a text dayname, and returns the weekday number (0 to 6) from that name.
+		Examples:
+		"Thurs" -> 3
+		"monday" -> 0
+	"""
+	for regex in _daysOfTheWeekRegexs:
 		matcher = re.compile(regex, re.I);
-		if(matcher.search(dayName)):
-			break; #regex is now the matched regex
+		if(matcher.match(dayName)):
+			return _daysOfTheWeekRegexs.index(regex)
+	return None
 
-	offset = g_daysOfTheWeekRegexs.index(regex)
+def datetimeByWeekdayName(dayName):
+	""" Takes a text weekday name, and returns a datetime.date
+	object for for the closes next day of the week matching that name, including today
+	Examples:
+		"Thurs" -> a datetime.date object for next closes Thursday (including today)
+		"monday" -> a datetime.date object for next closes Monday (including today)
+	"""
+	nowDT = datetime.today()
+	offset = weekdayNumberByName(dayName)
+
 	if(offset == nowDT.weekday()):
-		return datetime.today()
+		return datetime.today().date()
 	elif(offset < nowDT.weekday()):
 		offset = offset + 7 - nowDT.weekday()
 	elif(offset > nowDT.weekday()):
 		offset = offset - nowDT.weekday()
-	return datetimeByDelta(daysInTheFuture=offset)
+	return dateByDelta(daysInTheFuture=offset)
 
 
-def datetimeByDelta(daysInTheFuture=1,hourOfDay=13, miniute=00):
-	""" make a datetime for an item due in the future. Assume 13:00 if no time given"""
+def dateByDelta(daysInTheFuture=1):
+	"""Make a datetime for an item due in the future, based on the number of days from today."""
 	tmDT = datetime.today() + timedelta(days=daysInTheFuture)
-	newDT = datetime(tmDT.year,tmDT.month,tmDT.day
-		,hourOfDay, miniute, tmDT.second)
-	return newDT
+	newDate = datetime(tmDT.year,tmDT.month,tmDT.day).date()
+	return newDate
 
+def getBestDateFromText(text):
+		e = None
+		e = dateByNameAndDayNumber(text)
+		if(e is None):
+			e = dateByFutureDayName(text)
+		return e
+		
 def main():
-	"""command line main.  this allows someone to type a date in the commandline and generate a 
-	datetime object from it, and it prints the object out """
-	argString = ' '.join(sys.argv[1:])
-	e = datetimeByFutureDayText(argString)
-	print "date computed is: " + str(e)
+	"""Allows someone to type a date in the commandline and generate a datetime object from it, 
+	and it prints the object out """
+	
+	usageString = """ This is a commandline interface for converting a 
+	date as text into a datetime object. """
+
+	if( len(sys.argv) == 1):
+	 	print usageString
+	else:	 	
+		argString = ' '.join(sys.argv[1:])
+		
+		e = getBestDateFromText(argString);
+		
+		if (e is None):
+			print "no date match for " + argString
+		else:
+			print "date computed is: " + str(e)
 
 
 if __name__ == '__main__':
-	if(DEBUG):
-		import unittest
-		unittest.main()   
-	else:
-		main()
+	main()
 
 

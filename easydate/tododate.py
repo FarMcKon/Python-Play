@@ -1,70 +1,135 @@
 import easydate
 from datetime import *
-import unittest
-#import sys
+import sys
 import re
 
-""" This module is for easily converting a text date into a datetime object.
+__doc__ = """  This module is for converting a to-do string into a 'todo' object.  Each todo 
+object is a dictionary with a set of expected values
 
-Examples:
-	"Thursday" or "Thurs" or "thur", etc -> a datetime object for 13:00 on this (or the next following) Thursday.
-	"tomorrow" -> a datetime oject for 13:00 on the next day
-	"today"	   -> a datetime object for 13:00 
-		     (or after 13:00) a date time object for an hour from the current time until 22:59
-		      (after 22:59PM) a warning is thrown, and an object for tomorrow at 13:00 is created
-	"Wed at 3PM" -> a datetime object for this or the next wedsnesday at 1500
-	"Last Wed at 3PM" -> a datetime object for the previous wedsnesday at 1500
-	"Wed the 15th at 3PM" -> a datetime object for the first '15th' in the next 3 months that is a wednesday
-"""
+'starttime': a datetime object for when the  event starts
+'endtime' : a datetime object for when the event ends
+'calander' : a calendar name for the targetcalendar
+'sourceCalander' : a calendar name for the targetcalendar. 'todo list' by default
+'Locations' : a string indicating a location
+'tags' : a dictionary of tags. Each tag is a 'tag:data' pair. Data can be a string or a tuple.
+
+Examples: """
+
+hashRegex = "#([a-zA-Z]*)(\(.*?\))?"
+atRegex = "@([a-zA-Z]*)(\(.*?\))?"
+
+def stripHashTags(todoItemString):
+	""" takes a todo stirng. Removed the #tagname and #tagname(property) style hash tag.
+	And stores them in a dictoary of {tagname:property} pairs. 
+	Returns a tuple of the todo string (minus the matched tags) and a dictionary of tags, and
+	their properties. """
+	return  fastStrip(todoItemString, hashRegex)
 
 
-g_daysOfTheWeekRegexs = ['Mon([\.\s]|$|day)','Tues?([\.\s]|$|day)','Weds?([\.\s]|$|nesday)',
-'Thurs?([\.\s]|$|day)','Fri?([\.\s]|$|day)','Sat?([\.\s]|$|urday)','Sun([\.\s]|$|day)']
-g_breakerRegexes = [" at "]
-
-# 1) is it of the format 1AM - 12PM style (w/o minutes)
-g_dateRegex = '(([01]?[0-9])((A|P)\.?M\.?))'
-## 2) is it of the format 00:00 24:59 style
-g_dateRegex2 = '(([0-1][0-9])|(2[0-3])):?([0-5][0-9])' #index 0 is hour, index 3 is min
+def stripAtTags(todoItemString):
+	""" takes a todo stirng. Removed the #tagname and @tagname(property) style hash tag.
+	And stores them in a dictoary of {tagname:property} pairs. 
+	Returns a tuple of the todo string (minus the matched tags) and a dictionary of tags, and
+	their properties. """
+	return  fastStrip(todoItemString, atRegex)
 
 
-DEBUG = True
-
-class TestClass(unittest.TestCase):
-	def testDatetimeByDelta(self):
-		time = timebyText("12AM")
-		self.assertEqual(str(time),'12:00:00',"Fail for 12:00:00 vs " + str(time))
-		time = timebyText("2300")
-		self.assertEqual(str(time),'23:00:00',"Fail for 23:00:00 vs " + str(time))
-		time = timebyText("2210")
-		self.assertEqual(str(time),'22:10:00',"Fail for 22:10:00 vs " + str(time))
-		time = timebyText("2500")
-		self.assertEqual(str(time),'None',"erronous success for 2500 vs " + str(time))
-		print time
-		#self.assertEqual(0,1,"test fail")
+def fastStrip(todoItemString, hashRegex):
+	hashtagsDict = {}
+	removal = []
+	reg = re.compile(hashRegex,re.I);
 	
+	# match all of the # tags that we can match
+	for match in reg.finditer(todoItemString):
+		group = match.groups()
+#		print group
+		hashtagsDict[group[0]] = group[1:] if len(group) >2 else group[1]
+		removal.append( (match.start(),match.end()) )
 
-def timebyText(text):
-	matchedTime = None
-	time1Reg = re.compile(g_dateRegex)
-	z = time1Reg.search(text)
-	if(z):
-		hour = int(z.groups()[1])
-		minute = 0
-		matchedTime = time(hour, minute,00) 
-	time2Reg = re.compile(g_dateRegex2)
-	z = time2Reg.search(text)
-	if(z):
-		hour = int(z.groups()[0])
-		minute = int(z.groups()[3])
-		matchedTime = time(hour, minute,00) 
-	return matchedTime
+	#remove the #tags from the input text
+	removal.reverse()
+	for (start,end) in removal:
+		todoItemString = todoItemString[:start] + todoItemString[end:]
+	return todoItemString.strip(), hashtagsDict
+
+
+def todoTimeFromDate(dateObj):
+	""" function creates a 'todo time' datetime object from a datetime.date. 
+	If dateObj is today && current hour < 1300 a datetime object for 1300 today returns
+	If dateObj is today, && 1300 < current hour < 2200 , a datetime object 2200 today returns
+	If dateObj is today, otherwise a datetime object for 'now' returns. 
+	If dateObj is NOT today, a datetime for 1300 on that date is returned
+	"""
+	if(dateObj == None):
+		return None
+		
+	now = datetime.now()
+	if(now.date() == dateObj):
+		if(now.hour < 13):
+			return datetime(now.year, now.month, now.day, 13,0,0)
+		elif(now.hour < 22):
+			return datetime(now.year, now.month, now.day, 22,0,0)
+		return now()
+	return datetime(dateObj.year, dateObj.month, dateObj.day,13,00, 00)	
+
+
+def processAtTags(hashDict):
+
+	# -- Convert date string into a dattime object
+	if 'date' in hashDict.keys():
+		text = str(hashDict['date']).lstrip("[{(").rstrip("]})")
+		dateObj = easydate.getBestDateFromText(text)
+		datetimeObj = todoTimeFromDate(dateObj)
+		if(datetimeObj != None):
+			hashDict['date'] = datetimeObj
+
+	if 'cal' in hashDict.keys():
+		#TODO: find if we can match an exiting or expected calander
+#		print "cal match found: " + str(hashDict['cal'])
+		pass
 	
+	#TODO: for everythign that isn't a keyword, look to see if we can math a location
+		# with the todo list.
+	return hashDict
+
+
+def fullToDoItemFromText(todoItemString):
+	#-- strip out @tags. These are simpler tags, and explicitly explain how to process themselves.
+	todoItemString, hashDict = stripAtTags(todoItemString)
+	
+	print hashDict
+	#-- process @tags, and make full objects/items out of them.
+	hashDict = processAtTags(hashDict)
+	# string out #tags.  These are 'smart' tags, and they try to intellegently expand and match
+	# process #tags, and make full objects/items out of them.
+	
+	# return full objects to the caller
+	return todoItemString, hashDict
+
+
+def main():
+
+	usageString = """ This is a command line interface for converting a 'todo' event into magic. Read the doc. """
+
+	"""example: - Print out paperowrk @hive76 #tomorrow """
+	# @XXXX -> interpert @ at a place, person, or resource needed
+	# @date(tomorrow) -> interpert as date
+	# @cal(calendar name) -> adds the event to that calendar
+
+	# #tomorrow -> interpert text # as a date target 
+	# #Home_Calander => Interperts text as calander name "Home Calander"
+	# #(Home Calander) => Interperts text as calander name "Home Calander"
+	# #'Home Calander' => Interperts text as calander name "Home Calander"
+	
+	
+	if( len(sys.argv) == 1):
+	 	print usageString
+	else:	 	
+		argString = ' '.join(sys.argv[1:])
+		e = fullToDoItemFromText(argString)
+		print "date computed is: " + str(e)
+
 
 if __name__ == '__main__':
-	if(DEBUG):
-		import unittest
-		unittest.main()   
-	else:
-		main()
+	main()
 
